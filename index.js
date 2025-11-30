@@ -1,6 +1,9 @@
 import { Client, GatewayIntentBits, Partials, Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFlagsBits, ActivityType } from "discord.js";
 import dotenv from "dotenv";
 dotenv.config();
+import { keepAlive } from "./keepAlive.js";
+keepAlive();
+
 
 // ====== CONFIG ======
 const STAFF_CHANNEL_ID = process.env.STAFF_CHANNEL_ID || "1444571528921481246";

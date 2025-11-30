@@ -13,7 +13,8 @@
   "keywords": ["discord", "bot", "modmail", "support"],
   "dependencies": {
     "discord.js": "^14.25.1",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "express": "^4.18.2"
   },
   "engines": {
     "node": "18.x"
@@ -21,3 +22,6 @@
   "author": "Manish",
   "license": "MIT"
 }
+  
+
+
