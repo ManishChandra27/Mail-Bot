@@ -1,0 +1,23 @@
+{
+  "name": "dm-relay-bot",
+  "version": "1.0.0",
+  "description": "Simple Discord bot for DM -> Staff relay",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "register": "node register-commands.js",
+    "dev": "node --watch index.js",
+    "postinstall": "node register-commands.js"
+  },
+  "keywords": ["discord", "bot", "modmail", "support"],
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "author": "Manish",
+  "license": "MIT"
+}
