@@ -1,12 +1,11 @@
-import express from "express";
+const express = require("express");
 const app = express();
 
 app.get("/", (req, res) => {
   res.send("Bot is running 24/7!");
 });
 
-export function keepAlive() {
-  app.listen(3000, () => {
-    console.log("🟢 KeepAlive Server Running");
-  });
-}
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`🟢 KeepAlive Server Running on port ${port}`);
+});
