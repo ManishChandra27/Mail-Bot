@@ -11,7 +11,7 @@ const PREFIX = "!";
 const DEBUG = true;
 
 // ⭐ SPAM PROTECTION CONFIG
-const SPAM_LIMIT = 6; // Maximum messages in time window
+const SPAM_LIMIT = 5; // Maximum messages in time window
 const SPAM_WINDOW = 60000; // Time window in milliseconds (60 seconds)
 const SPAM_COOLDOWN = 300000; // Cooldown after spam detected (5 minutes)
 
@@ -21,7 +21,7 @@ const BAD_WORDS = [
   "fuck", "shit", "bitch", "asshole", "dick", "pussy", "bastard", "damn",
   "cunt", "whore", "slut", "nigger", "faggot", "retard",
   // Hindi/Urdu bad words (transliterated)
-  "chutiya", "madarchod", "bhenchod", "bhosdike", "gandu", "harami",
+  "chutiya","chutya", "madarchod", "bhenchod", "bhosdike", "gandu", "harami",
   "kutte", "kamine", "saale", "randi", "lodu", "lawde",
   // Add more words as needed
 ];
@@ -439,9 +439,30 @@ client.on(Events.MessageCreate, async (message) => {
         userConvo.lastMessageAt = new Date();
       }
       
-      // Mark that staff replied - reset spam counter for this user
+      // Mark that staff replied - reset spam counter AND remove cooldown for this user
       lastStaffReply.set(userId, Date.now());
-      debugLog(`Staff replied to ${userId} - spam counter will reset on next message`);
+      
+      // Remove spam cooldown if user was on cooldown
+      if (spamCooldowns.has(userId)) {
+        spamCooldowns.delete(userId);
+        userMessageTimestamps.delete(userId);
+        debugLog(`Cooldown removed for ${userId} - staff replied`);
+        
+        // Notify user that they can message again
+        try {
+          const cooldownRemovedEmbed = new EmbedBuilder()
+            .setColor(0x57F287)
+            .setTitle("✅ You Can Message Again")
+            .setDescription("A staff member has replied to you. Your cooldown has been removed and you can continue the conversation.")
+            .setTimestamp();
+          
+          await user.send({ embeds: [cooldownRemovedEmbed] });
+        } catch (e) {
+          debugLog(`Could not notify user about cooldown removal: ${e.message}`);
+        }
+      } else {
+        debugLog(`Staff replied to ${userId} - spam counter will reset on next message`);
+      }
     } catch (error) {
       console.error("Reply error:", error);
       await message.reply({
