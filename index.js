@@ -161,7 +161,7 @@ client.on(Events.MessageCreate, async (message) => {
       await thread.send({ 
         embeds: [embed]
       });
-      debugLog(`Message forwarded to thread #${userConvo.messageCount} with ${attachmentFiles.length} files`);
+      debugLog(`Message forwarded to thread #${userConvo.messageCount}`);
 
       // Send welcome message to user on first message
       if (userConvo.messageCount === 1) {
