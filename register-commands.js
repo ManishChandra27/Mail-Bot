@@ -5,29 +5,29 @@ dotenv.config();
 const commands = [
   new SlashCommandBuilder()
     .setName('say')
-    .setDescription('Send a message to a channel')
-    .addChannelOption(option =>
-      option
-        .setName('channel')
-        .setDescription('Channel where message will be sent')
-        .setRequired(true)
-    )
+    .setDescription('Send a message to a channel (default: current channel)')
     .addStringOption(option =>
       option
         .setName('message')
         .setDescription('Message text')
         .setRequired(true)
     )
-    .addBooleanOption(option =>
-      option
-        .setName('embed')
-        .setDescription('Send as embed? true = embed, false = normal')
-        .setRequired(false)
-    )
     .addAttachmentOption(option =>
       option
         .setName('attachment')
         .setDescription('Optional file/image')
+        .setRequired(false)
+    )
+    .addBooleanOption(option =>
+      option
+        .setName('embed')
+        .setDescription('Send as embed? (default: false)')
+        .setRequired(false)
+    )
+    .addChannelOption(option =>
+      option
+        .setName('channel')
+        .setDescription('Target channel (leave empty for current channel)')
         .setRequired(false)
     ),
 

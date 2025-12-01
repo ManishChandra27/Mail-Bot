@@ -136,31 +136,30 @@ client.on(Events.MessageCreate, async (message) => {
         embed.setDescription(message.content);
       }
 
-      // Handle attachments - Forward actual files
-      const attachmentFiles = [];
+      // Handle attachments - Show link in embed, image as preview
       if (message.attachments.size > 0) {
         debugLog(`Processing ${message.attachments.size} attachments`);
         
+        const attachmentLinks = [];
         message.attachments.forEach(attachment => {
-          attachmentFiles.push(attachment.url);
-        });
-
-        embed.addFields({ 
-          name: "📎 Attachments", 
-          value: `${message.attachments.size} file(s) attached` 
+          attachmentLinks.push(`[${attachment.name}](${attachment.url})`);
         });
         
-        // Set first image as thumbnail
+        embed.addFields({ 
+          name: "📎 Attachments", 
+          value: attachmentLinks.join('\n')
+        });
+        
+        // Set first image as embed image for preview
         const firstImage = message.attachments.find(a => a.contentType?.startsWith("image/"));
         if (firstImage) {
           embed.setImage(firstImage.url);
         }
       }
 
-      // Send message with files
+      // Send message (no separate file attachments to avoid duplication)
       await thread.send({ 
-        embeds: [embed],
-        files: attachmentFiles.length > 0 ? attachmentFiles : []
+        embeds: [embed]
       });
       debugLog(`Message forwarded to thread #${userConvo.messageCount} with ${attachmentFiles.length} files`);
 
@@ -219,47 +218,30 @@ client.on(Events.MessageCreate, async (message) => {
     try {
       const user = await client.users.fetch(userId);
       
-      // Create embed only if there's text content
-      const hasContent = message.content && message.content.trim().length > 0;
-      const hasAttachments = message.attachments.size > 0;
-
       // Prepare files
       const attachmentFiles = [];
-      if (hasAttachments) {
+      if (message.attachments.size > 0) {
         message.attachments.forEach(attachment => {
           attachmentFiles.push(attachment.url);
         });
       }
 
-      // Send message based on what's available
-      if (hasContent) {
-        const replyEmbed = new EmbedBuilder()
-          .setColor(0x57F287)
-          .setAuthor({ name: "Staff Response", iconURL: message.guild?.iconURL() })
-          .setDescription(message.content)
-          .setTimestamp();
-
-        if (hasAttachments) {
-          replyEmbed.addFields({ 
-            name: "📎 Attachments", 
-            value: `${message.attachments.size} file(s) attached` 
-          });
-        }
-
+      // ✅ CHANGE 1: Send normal message instead of embed
+      const hasContent = message.content && message.content.trim().length > 0;
+      
+      if (hasContent && attachmentFiles.length > 0) {
+        // Send text with files
         await user.send({ 
-          embeds: [replyEmbed],
+          content: `📨 **Support Team:**\n${message.content}`,
           files: attachmentFiles
         });
-      } else if (hasAttachments) {
-        // Only attachments, no text
-        const attachmentEmbed = new EmbedBuilder()
-          .setColor(0x57F287)
-          .setAuthor({ name: "Staff Response", iconURL: message.guild?.iconURL() })
-          .setDescription("*Staff sent you file(s)*")
-          .setTimestamp();
-
+      } else if (hasContent) {
+        // Only text
+        await user.send(`📨 **Support Team:**\n${message.content}`);
+      } else if (attachmentFiles.length > 0) {
+        // Only files
         await user.send({ 
-          embeds: [attachmentEmbed],
+          content: "📨 **Support Team:** *Sent you file(s)*",
           files: attachmentFiles
         });
       }
@@ -439,7 +421,7 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     if (activeConversations.size === 0) {
-      return message.reply("📭 No active conversations.");
+      return message.reply("🔭 No active conversations.");
     }
 
     const embed = new EmbedBuilder()
@@ -518,7 +500,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     // /say command
     if (commandName === 'say') {
-      const channel = interaction.options.getChannel('channel');
+      // ✅ CHANGE 2: Make channel optional, default to current channel
+      const channel = interaction.options.getChannel('channel') || interaction.channel;
       const message = interaction.options.getString('message');
       const embedOption = interaction.options.getBoolean('embed');
       const attachment = interaction.options.getAttachment('attachment');
@@ -650,7 +633,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (commandName === 'conversations') {
       if (activeConversations.size === 0) {
         return interaction.reply({
-          content: "📭 No active conversations.",
+          content: "🔭 No active conversations.",
           ephemeral: true
         });
       }
@@ -682,7 +665,7 @@ client.once(Events.ClientReady, async () => {
   console.log(`✅ Bot logged in as ${client.user.tag}`);
   console.log(`📬 ModMail ready | Staff Channel: ${STAFF_CHANNEL_ID}`);
   console.log(`🔐 Required Permission: Administrator`);
-  console.log(`📝 Features: Private Threads, Direct Replies, Auto-Close, File Support, Announcements`);
+  console.log(`🔥 Features: Private Threads, Direct Replies, Auto-Close, File Support, Announcements`);
   console.log(`💡 Staff can reply directly in threads - no commands needed!`);
   console.log(`🔧 Commands: ${PREFIX}reply, ${PREFIX}close, ${PREFIX}conversations, /say`);
   console.log(`\n🔍 Debug Mode: ${DEBUG ? 'ENABLED' : 'DISABLED'}`);
