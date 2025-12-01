@@ -20,6 +20,7 @@ const REQUIRED_PERMISSION = PermissionFlagsBits.Administrator;
 // Track active conversations with threads
 const activeThreads = new Map();
 const activeConversations = new Map();
+const processedMessages = new Set(); // Prevent duplicate processing
 
 // Helper function for debug logging
 function debugLog(message, data = null) {
@@ -58,6 +59,19 @@ client.on(Events.MessageCreate, async (message) => {
   // Handle only DM messages (type 1 is DM)
   if (message.channel.type === 1) {
     debugLog(`Processing DM from ${message.author.tag}`);
+    
+    // Prevent duplicate processing
+    if (processedMessages.has(message.id)) {
+      debugLog(`Message ${message.id} already processed, skipping`);
+      return;
+    }
+    processedMessages.add(message.id);
+    
+    // Clean old processed messages (keep last 100)
+    if (processedMessages.size > 100) {
+      const first = processedMessages.values().next().value;
+      processedMessages.delete(first);
+    }
     
     try {
       const staffChannel = await client.channels.fetch(STAFF_CHANNEL_ID);
@@ -661,7 +675,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // ===============
 // READY EVENT
 // ===============
+let isReady = false; // Prevent multiple ready events
+
 client.once(Events.ClientReady, async () => {
+  if (isReady) {
+    console.log("⚠️ Bot already ready, skipping duplicate ready event");
+    return;
+  }
+  isReady = true;
+  
   console.log(`✅ Bot logged in as ${client.user.tag}`);
   console.log(`📬 ModMail ready | Staff Channel: ${STAFF_CHANNEL_ID}`);
   console.log(`🔐 Required Permission: Administrator`);
