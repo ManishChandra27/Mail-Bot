@@ -10,6 +10,22 @@ const STAFF_CHANNEL_ID = process.env.STAFF_CHANNEL_ID || "1444571528921481246";
 const PREFIX = "!";
 const DEBUG = true;
 
+// ⭐ SPAM PROTECTION CONFIG
+const SPAM_LIMIT = 6; // Maximum messages in time window
+const SPAM_WINDOW = 60000; // Time window in milliseconds (60 seconds)
+const SPAM_COOLDOWN = 300000; // Cooldown after spam detected (5 minutes)
+
+// ⭐ BAD WORDS FILTER - Add your own words here
+const BAD_WORDS = [
+  // English bad words
+  "fuck", "shit", "bitch", "asshole", "dick", "pussy", "bastard", "damn",
+  "cunt", "whore", "slut", "nigger", "faggot", "retard",
+  // Hindi/Urdu bad words (transliterated)
+  "chutiya", "madarchod", "bhenchod", "bhosdike", "gandu", "harami",
+  "kutte", "kamine", "saale", "randi", "lodu", "lawde",
+  // Add more words as needed
+];
+
 // ⭐ PERMISSION CONFIGURATION - Change this to control who can use commands
 const REQUIRED_PERMISSION = PermissionFlagsBits.Administrator;
 // You can change it to any permission like:
@@ -21,6 +37,9 @@ const REQUIRED_PERMISSION = PermissionFlagsBits.Administrator;
 const activeThreads = new Map();
 const activeConversations = new Map();
 const processedMessages = new Set(); // Prevent duplicate processing
+const userMessageTimestamps = new Map(); // Track message timestamps for spam detection
+const spamCooldowns = new Map(); // Track users on cooldown
+const lastStaffReply = new Map(); // Track when staff last replied to reset spam counter
 
 // Helper function for debug logging
 function debugLog(message, data = null) {
@@ -28,6 +47,90 @@ function debugLog(message, data = null) {
     console.log(`[DEBUG] ${message}`);
     if (data) console.log(data);
   }
+}
+
+// Helper function to check for bad words
+function containsBadWords(text) {
+  // Normalize text - remove special characters, extra spaces, and common bypasses
+  const normalizedText = text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '') // Remove special chars like /, \, *, @, etc.
+    .replace(/\s+/g, ' ')         // Replace multiple spaces with single space
+    .replace(/0/g, 'o')           // Replace 0 with o
+    .replace(/1/g, 'i')           // Replace 1 with i
+    .replace(/3/g, 'e')           // Replace 3 with e
+    .replace(/4/g, 'a')           // Replace 4 with a
+    .replace(/5/g, 's')           // Replace 5 with s
+    .replace(/7/g, 't')           // Replace 7 with t
+    .replace(/8/g, 'b')           // Replace 8 with b
+    .trim();
+  
+  return BAD_WORDS.some(word => {
+    // Check if bad word exists in normalized text
+    const normalizedWord = word.toLowerCase();
+    
+    // Check with word boundaries
+    const regexStrict = new RegExp(`\\b${normalizedWord}\\b`, 'i');
+    if (regexStrict.test(normalizedText)) return true;
+    
+    // Check if word is contained (for words with special chars removed)
+    if (normalizedText.includes(normalizedWord)) return true;
+    
+    // Check with spaces between characters (e.g., "c h u t i y a")
+    const spacedWord = normalizedWord.split('').join('\\s*');
+    const regexSpaced = new RegExp(spacedWord, 'i');
+    if (regexSpaced.test(normalizedText)) return true;
+    
+    return false;
+  });
+}
+
+// Helper function to check spam
+function isSpamming(userId) {
+  const now = Date.now();
+  
+  // Check if user is on cooldown
+  if (spamCooldowns.has(userId)) {
+    const cooldownEnd = spamCooldowns.get(userId);
+    if (now < cooldownEnd) {
+      const remainingTime = Math.ceil((cooldownEnd - now) / 1000);
+      return { spam: true, cooldown: true, remaining: remainingTime };
+    } else {
+      spamCooldowns.delete(userId);
+    }
+  }
+  
+  // Reset spam counter if staff replied recently (within last 5 seconds)
+  if (lastStaffReply.has(userId)) {
+    const lastReply = lastStaffReply.get(userId);
+    if (now - lastReply < 5000) {
+      userMessageTimestamps.delete(userId);
+      debugLog(`Spam counter reset for ${userId} - staff replied recently`);
+    }
+  }
+  
+  // Get user's message timestamps
+  if (!userMessageTimestamps.has(userId)) {
+    userMessageTimestamps.set(userId, []);
+  }
+  
+  const timestamps = userMessageTimestamps.get(userId);
+  
+  // Remove old timestamps outside the spam window
+  const recentTimestamps = timestamps.filter(time => now - time < SPAM_WINDOW);
+  userMessageTimestamps.set(userId, recentTimestamps);
+  
+  // Check if user exceeded spam limit
+  if (recentTimestamps.length >= SPAM_LIMIT) {
+    spamCooldowns.set(userId, now + SPAM_COOLDOWN);
+    return { spam: true, cooldown: false };
+  }
+  
+  // Add current timestamp
+  recentTimestamps.push(now);
+  userMessageTimestamps.set(userId, recentTimestamps);
+  
+  return { spam: false };
 }
 
 // ====== CLIENT ======
@@ -71,6 +174,73 @@ client.on(Events.MessageCreate, async (message) => {
     if (processedMessages.size > 100) {
       const first = processedMessages.values().next().value;
       processedMessages.delete(first);
+    }
+    
+    // ⛔ SPAM PROTECTION
+    const spamCheck = isSpamming(message.author.id);
+    if (spamCheck.spam) {
+      if (spamCheck.cooldown) {
+        const errorEmbed = new EmbedBuilder()
+          .setColor(0xED4245)
+          .setTitle("⏰ Cooldown Active")
+          .setDescription(`You're sending messages too quickly! Please wait **${spamCheck.remaining} seconds** before trying again.`)
+          .setFooter({ text: "Please avoid spamming our support system" });
+        
+        await message.reply({ embeds: [errorEmbed] }).catch(() => {});
+        debugLog(`User ${message.author.tag} is on cooldown`);
+        return;
+      } else {
+        const warnEmbed = new EmbedBuilder()
+          .setColor(0xED4245)
+          .setTitle("⚠️ Spam Detected")
+          .setDescription(`You're sending too many messages! You have been placed on a **5-minute cooldown**.\n\nPlease be patient and avoid spamming.`)
+          .setFooter({ text: "Continued spam may result in being blocked" });
+        
+        await message.reply({ embeds: [warnEmbed] }).catch(() => {});
+        debugLog(`User ${message.author.tag} triggered spam protection`);
+        
+        // Notify staff
+        try {
+          const staffChannel = await client.channels.fetch(STAFF_CHANNEL_ID);
+          const spamAlert = new EmbedBuilder()
+            .setColor(0xFEE75C)
+            .setTitle("⚠️ Spam Alert")
+            .setDescription(`**${message.author.tag}** (${message.author.id}) has been auto-muted for spam.\n\n**Cooldown:** 5 minutes`)
+            .setTimestamp();
+          
+          await staffChannel.send({ embeds: [spamAlert] });
+        } catch (error) {
+          console.error("Failed to send spam alert:", error);
+        }
+        return;
+      }
+    }
+    
+    // ⛔ BAD WORDS FILTER
+    if (message.content && containsBadWords(message.content)) {
+      const warningEmbed = new EmbedBuilder()
+        .setColor(0xED4245)
+        .setTitle("🚫 Inappropriate Language Detected")
+        .setDescription("Your message contains inappropriate language and has been blocked.\n\nPlease keep your messages respectful and professional.")
+        .setFooter({ text: "Continued violations may result in being blocked" });
+      
+      await message.reply({ embeds: [warningEmbed] }).catch(() => {});
+      debugLog(`Bad word detected from ${message.author.tag}: ${message.content}`);
+      
+      // Notify staff about bad words
+      try {
+        const staffChannel = await client.channels.fetch(STAFF_CHANNEL_ID);
+        const badWordAlert = new EmbedBuilder()
+          .setColor(0xED4245)
+          .setTitle("🚫 Bad Word Alert")
+          .setDescription(`**${message.author.tag}** (${message.author.id}) tried to send:\n\`\`\`${message.content}\`\`\``)
+          .setTimestamp();
+        
+        await staffChannel.send({ embeds: [badWordAlert] });
+      } catch (error) {
+        console.error("Failed to send bad word alert:", error);
+      }
+      return;
     }
     
     try {
@@ -268,6 +438,10 @@ client.on(Events.MessageCreate, async (message) => {
       if (userConvo) {
         userConvo.lastMessageAt = new Date();
       }
+      
+      // Mark that staff replied - reset spam counter for this user
+      lastStaffReply.set(userId, Date.now());
+      debugLog(`Staff replied to ${userId} - spam counter will reset on next message`);
     } catch (error) {
       console.error("Reply error:", error);
       await message.reply({
