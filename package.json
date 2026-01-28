@@ -22,7 +22,7 @@
     "express": "^4.21.2"
   },
   "engines": {
-    "node": "18.x"
+    "node": "20.x"
   },
   "author": "Manish",
   "license": "MIT"
